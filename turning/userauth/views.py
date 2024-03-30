@@ -4,26 +4,33 @@ from rest_framework.response import Response
 from .serializers import RegisterSerializer, LoginSerializer
 from django.contrib.auth import login, logout
 from rest_framework import status
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
+from setturn.models import UserRole, Roles
+from rest_framework.decorators import authentication_classes
+from rest_framework.authentication import SessionAuthentication
 
-class CSRFExemptMixin(object):
-    @method_decorator(csrf_exempt)
-    def dispatch(self, *args, **kwargs):
-        return super(CSRFExemptMixin, self).dispatch(*args, **kwargs)
-    
-class RegisterUserAPIView(CSRFExemptMixin, APIView):
+class CsrfExemptSessionAuthentication(SessionAuthentication):
+    def enforce_csrf(self, request):
+        pass
+
+@authentication_classes([CsrfExemptSessionAuthentication])
+class RegisterUserAPIView(APIView):
     permission_classes = (AllowAny,)
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            user = serializer.save()
+            if request._data["admin"] == 1:
+                userRole = Roles.objects.get(name="Admin")    
+            else:
+                userRole = Roles.objects.get(name="User")
+            userRole = UserRole.objects.create(user=user, role=userRole)
+
             return Response(serializer.data, status=201)
         return Response(serializer.errors, status=400)
 
-
-class LoginView(CSRFExemptMixin, APIView):
+@authentication_classes([CsrfExemptSessionAuthentication])
+class LoginView(APIView):
     permission_classes = (AllowAny,)
 
     def post(self, request, format=None):
@@ -31,9 +38,9 @@ class LoginView(CSRFExemptMixin, APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
         login(request, user)
-        return Response(None, status=status.HTTP_202_ACCEPTED)
+        return Response({"message": "Successfully logged in"}, status=status.HTTP_202_ACCEPTED)
 
-class LogoutView(CSRFExemptMixin, APIView):
+class LogoutView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
