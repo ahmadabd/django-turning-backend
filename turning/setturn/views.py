@@ -7,6 +7,7 @@ from .models import Organizations, UserRole, Category, OrganizationCategory
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import authentication_classes
 from rest_framework.authentication import SessionAuthentication
+from django.db.models import Q
 
 class CsrfExemptSessionAuthentication(SessionAuthentication):
     def enforce_csrf(self, request):
@@ -85,4 +86,20 @@ class OrganizationCategoryView(APIView):
             return Response({'error': 'Organization not found or dosent have category'}, status=status.HTTP_404_NOT_FOUND)
         
         serializer = CategorySerializer(organizationCategory.get().category)
+        return Response(serializer.data)
+    
+class SearchOrganizationsView(APIView):
+
+    def get(self, request):
+        organizations = Organizations.objects.filter(Q(name__icontains = request.GET.get("search")) | 
+                                                     Q(organizationcategory__category__name = request.GET.get("search")))
+
+        serializer = OrganizationSerializer(organizations, many=True)
+        return Response(serializer.data)
+    
+class GETCategoryOrganizations(APIView):
+    def get(self, request, id):
+        organizations = Organizations.objects.filter(organizationcategory__category__id = id)
+
+        serializer = OrganizationSerializer(organizations, many=True)
         return Response(serializer.data)
